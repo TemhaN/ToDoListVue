@@ -15,19 +15,34 @@ export const useTasksStore = defineStore('tasks', () => {
 
 	const authStore = useAuthStore();
 
-	async function fetchTasks(page: number = 1) {
+	async function fetchTasks(
+		page: number = 1,
+		isCompleted: boolean | null = null,
+		sortBy: string | null = null,
+		sortOrder: string | null = 'asc',
+		searchQuery: string = ''
+	) {
 		try {
 			if (!authStore.token) {
 				throw new Error('Токен авторизации отсутствует');
 			}
+
 			const response = await axios.get<PagedResult<Task>>(TASKS_API_URL, {
-				params: { page, pageSize: tasks.value.pageSize },
+				params: {
+					page,
+					pageSize: tasks.value.pageSize,
+					isCompleted,
+					sortBy,
+					sortOrder,
+					searchQuery: searchQuery || undefined,
+				},
 				headers: {
 					Authorization: `Bearer ${authStore.token}`,
 				},
 			});
 			tasks.value = response.data;
 		} catch (error) {
+			console.error('Fetch tasks error:', error);
 			throw new Error(
 				'Ошибка загрузки задач: ' +
 					(error.response?.data?.message || error.message)
@@ -46,6 +61,7 @@ export const useTasksStore = defineStore('tasks', () => {
 				},
 			});
 		} catch (error) {
+			console.error('Delete task error:', error);
 			throw new Error(
 				'Ошибка удаления задачи: ' +
 					(error.response?.data?.message || error.message)
