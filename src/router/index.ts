@@ -20,12 +20,25 @@ const router = createRouter({
 			name: 'register',
 			component: () => import('@/components/Register.vue'),
 		},
+		{
+			path: '/add-task',
+			name: 'AddTask',
+			component: () => import('@/views/AddTask.vue'),
+			meta: { requiresAuth: true },
+		},
+		{
+			path: '/edit-task/:id',
+			name: 'EditTask',
+			component: () => import('@/views/EditTask.vue'),
+			meta: { requiresAuth: true },
+		},
 	],
 });
 
-router.beforeEach((to, from, next) => {
+router.beforeEach(async (to, from, next) => {
 	const authStore = useAuthStore();
-	if (to.meta.requiresAuth && !authStore.isAuthenticated) {
+	await authStore.initialize();
+	if (to.meta.requiresAuth && !authStore.user) {
 		next('/login');
 	} else {
 		next();

@@ -2,51 +2,108 @@ import { defineStore } from 'pinia';
 import axios from 'axios';
 import { ref } from 'vue';
 import { AUTH_API_URL } from '@/api/config';
-import type { LoginDto, RegisterDto } from '@/types';
+import { useRouter } from 'vue-router';
+
+export interface User {
+	id: number;
+	email: string;
+	username: string;
+}
 
 export const useAuthStore = defineStore('auth', () => {
-	const token = ref<string | null>(localStorage.getItem('token'));
-	const isAuthenticated = ref(!!token.value);
+	const token = ref<string | null>(null);
+	const user = ref<User | null>(null);
+	const router = useRouter();
 
-	if (token.value) {
-		axios.defaults.headers.common['Authorization'] = `Bearer ${token.value}`;
-	}
-	
-	async function login(credentials: LoginDto) {
+	async function login(email: string, password: string) {
 		try {
-			const response = await axios.post(`${AUTH_API_URL}/login`, credentials);
+			const response = await axios.post<{ token: string }>(
+				`${AUTH_API_URL}/login`,
+				{
+					email,
+					password,
+				}
+			);
 			token.value = response.data.token;
 			localStorage.setItem('token', token.value);
-			isAuthenticated.value = true;
-			axios.defaults.headers.common['Authorization'] = `Bearer ${token.value}`;
+			await fetchUser();
+			router.push('/');
 		} catch (error) {
 			throw new Error(
-				'Ошибка входа: ' + (error.response?.data?.message || error.message)
+				'Ошибка входа: ' +
+					(error.response?.data?.message || 'Неверный формат данных')
 			);
 		}
 	}
 
-	async function register(data: RegisterDto) {
+	async function register(email: string, username: string, password: string) {
 		try {
-			const response = await axios.post(`${AUTH_API_URL}/register`, data);
+			const response = await axios.post<{ token: string }>(
+				`${AUTH_API_URL}/register`,
+				{
+					email,
+					username,
+					password,
+				}
+			);
 			token.value = response.data.token;
 			localStorage.setItem('token', token.value);
-			isAuthenticated.value = true;
-			axios.defaults.headers.common['Authorization'] = `Bearer ${token.value}`;
+			await fetchUser();
+			router.push('/');
 		} catch (error) {
 			throw new Error(
 				'Ошибка регистрации: ' +
-					(error.response?.data?.message || error.message)
+					(error.response?.data?.message || 'Неверный формат данных')
+			);
+		}
+	}
+
+	async function fetchUser() {
+		if (!token.value) {
+			throw new Error('Токен авторизации отсутствует');
+		}
+
+		try {
+			const response = await axios.get<User>(`${AUTH_API_URL}/me`, {
+				headers: {
+					Authorization: `Bearer ${token.value}`,
+				},
+			});
+			user.value = response.data;
+		} catch (error) {
+			throw new Error(
+				'Ошибка получения данных пользователя: ' +
+					(error.response?.data?.message || 'Неверный формат данных')
 			);
 		}
 	}
 
 	function logout() {
 		token.value = null;
+		user.value = null;
 		localStorage.removeItem('token');
-		isAuthenticated.value = false;
-		delete axios.defaults.headers.common['Authorization'];
+		router.push('/login');
 	}
 
-	return { token, isAuthenticated, login, register, logout };
+	async function initialize() {
+		const storedToken = localStorage.getItem('token');
+		if (storedToken) {
+			token.value = storedToken;
+			try {
+				await fetchUser();
+			} catch (error) {
+				logout();
+			}
+		}
+	}
+
+	return {
+		token,
+		user,
+		login,
+		register,
+		fetchUser,
+		logout,
+		initialize,
+	};
 });
