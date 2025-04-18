@@ -3,7 +3,7 @@ import { ref, onMounted } from 'vue';
 import { useTasksStore } from '@/stores/tasks';
 import { useAuthStore } from '@/stores/auth';
 import { useRouter } from 'vue-router';
-import type { CategoryDto } from '@/stores/tasks';
+import type { CategoryDto, TaskCategoryInput } from '@/types';
 
 const tasksStore = useTasksStore();
 const authStore = useAuthStore();
@@ -13,7 +13,7 @@ const form = ref({
   title: '',
   description: '',
   dueDate: '',
-  categoryIds: [] as number[],
+  categoryIds: [] as { id: number; isGlobal: boolean }[],
 });
 const categories = ref<CategoryDto[]>([]);
 const error = ref<string | null>(null);
@@ -22,12 +22,9 @@ const isLoading = ref(false);
 onMounted(async () => {
   try {
     isLoading.value = true;
-
-		categories.value = await tasksStore.fetchCategories();
-
+    categories.value = await tasksStore.fetchCategories();
   } catch (err) {
-    // error.value = 'Не удалось загрузить категории: ' + (err as Error).message;
-    console.error('Не удалось загрузить категории::', err);
+    error.value = 'Не удалось загрузить категории: ' + (err as Error).message;
   } finally {
     isLoading.value = false;
   }
@@ -39,20 +36,32 @@ async function submitForm() {
     return;
   }
 
+  if (!form.value.description.trim()) {
+    error.value = 'Описание задачи обязательно';
+    return;
+  }
+
   try {
     isLoading.value = true;
     let dueDate: string | undefined = undefined;
+    if (form.value.dueDate) {
+      dueDate = new Date(form.value.dueDate).toISOString();
+    }
+
+    const taskCategories: TaskCategoryInput[] = form.value.categoryIds.map(cat => ({
+      id: cat.id,
+      isGlobal: cat.isGlobal,
+    }));
 
     await tasksStore.createTask({
-      title: form.value.title,
-      description: form.value.description || undefined,
+      title: form.value.title.trim(),
+      description: form.value.description.trim(),
       dueDate,
-      categoryIds: form.value.categoryIds.length ? form.value.categoryIds : undefined,
+      categories: taskCategories.length ? taskCategories : undefined,
     });
     router.push('/');
   } catch (err) {
     error.value = 'Ошибка создания задачи: ' + (err as Error).message;
-    // console.error('Ошибка создания задачи:', err);
   } finally {
     isLoading.value = false;
   }
@@ -107,9 +116,24 @@ async function submitForm() {
           multiple
           :disabled="isLoading || !categories.length"
         >
-          <option v-for="category in categories" :key="category.id" :value="category.id">
-            {{ category.name || 'Без названия' }} ({{ category.isGlobal ? 'Глобальная' : 'Пользовательская' }})
-          </option>
+          <optgroup label="Глобальные категории">
+            <option
+              v-for="category in categories.filter(c => c.isGlobal)"
+              :key="'global_' + category.id"
+              :value="{ id: category.id, isGlobal: true }"
+            >
+              {{ category.name || 'Без названия' }}
+            </option>
+          </optgroup>
+          <optgroup label="Пользовательские категории">
+            <option
+              v-for="category in categories.filter(c => !c.isGlobal)"
+              :key="'user_' + category.id"
+              :value="{ id: category.id, isGlobal: false }"
+            >
+              {{ category.name || 'Без названия' }}
+            </option>
+          </optgroup>
         </select>
       </div>
       <button type="submit" class="btn btn-primary" :disabled="isLoading">

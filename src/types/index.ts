@@ -8,6 +8,26 @@ export interface RegisterDto {
 	password: string;
 	username: string;
 }
+
+export interface CategoryDto {
+	id: number;
+	name: string;
+	isGlobal: boolean;
+}
+
+export interface CategoryCreateDto {
+	name: string;
+}
+
+export interface CategoryUpdateDto {
+	name: string;
+}
+
+export interface TaskCategoryInput {
+	id: number;
+	isGlobal: boolean;
+}
+
 export interface Task {
 	id: number;
 	title: string;
@@ -15,10 +35,8 @@ export interface Task {
 	isCompleted: boolean;
 	dueDate?: string;
 	createdAt: string;
-	categoryName?: string;
-	categoryIds?: number[];
+	categories?: CategoryDto[];
 }
-
 export interface PagedResult<T> {
 	items: T[];
 	totalCount: number;
