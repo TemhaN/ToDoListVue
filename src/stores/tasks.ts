@@ -2,24 +2,13 @@ import { defineStore } from 'pinia';
 import axios from 'axios';
 import { ref } from 'vue';
 import { TASKS_API_URL, CATEGORIES_API_URL } from '@/api/config';
-import type { PagedResult } from '@/types';
+import type {
+	PagedResult,
+	CategoryDto,
+	Task,
+	TaskCategoryInput,
+} from '@/types';
 import { useAuthStore } from '@/stores/auth';
-
-export interface CategoryDto {
-	id: number;
-	name: string;
-	isGlobal: boolean;
-}
-
-export interface Task {
-	id: number;
-	title: string;
-	description?: string;
-	isCompleted: boolean;
-	dueDate?: string;
-	createdAt: string;
-	categories?: CategoryDto[];
-}
 
 export const useTasksStore = defineStore('tasks', () => {
 	const tasks = ref<PagedResult<Task>>({
@@ -58,7 +47,6 @@ export const useTasksStore = defineStore('tasks', () => {
 			});
 			tasks.value = response.data;
 		} catch (error) {
-			// console.error('Ошибка загрузки задач:', error);
 			throw new Error(
 				'Ошибка загрузки задач: ' +
 					(error.response?.data?.message || error.message)
@@ -68,9 +56,9 @@ export const useTasksStore = defineStore('tasks', () => {
 
 	async function createTask(task: {
 		title: string;
-		description?: string;
+		description: string;
 		dueDate?: string;
-		categoryIds?: number[];
+		categories?: TaskCategoryInput[];
 	}) {
 		try {
 			if (!authStore.token) {
@@ -84,10 +72,9 @@ export const useTasksStore = defineStore('tasks', () => {
 			});
 			return response.data;
 		} catch (error) {
-			// console.error('Ошибка создания задачи:', error);
 			throw new Error(
 				'Ошибка создания задачи: ' +
-					(error.response?.data?.message || error.message)
+					(error.response?.data || error.message)
 			);
 		}
 	}
@@ -96,10 +83,10 @@ export const useTasksStore = defineStore('tasks', () => {
 		taskId: number,
 		task: {
 			title?: string;
-			description?: string;
+			description: string;
 			isCompleted?: boolean;
 			dueDate?: string;
-			categoryIds?: number[];
+			categories?: TaskCategoryInput[];
 		}
 	) {
 		try {
@@ -113,10 +100,8 @@ export const useTasksStore = defineStore('tasks', () => {
 				},
 			});
 		} catch (error) {
-			// console.error('Ошибка обновления задачи:', error);
 			throw new Error(
-				'Ошибка обновления задачи: ' +
-					(error.response?.data?.message || error.message)
+				'Ошибка обновления задачи: ' + (error.response?.data || error.message)
 			);
 		}
 	}
@@ -132,7 +117,6 @@ export const useTasksStore = defineStore('tasks', () => {
 				},
 			});
 		} catch (error) {
-			// console.error('Ошибка удаления задачи:', error);
 			throw new Error(
 				'Ошибка удаления задачи: ' +
 					(error.response?.data?.message || error.message)
@@ -155,7 +139,6 @@ export const useTasksStore = defineStore('tasks', () => {
 				}
 			);
 		} catch (error) {
-			// console.error('Ошибка при отметке задачи:', error);
 			throw new Error(
 				'Ошибка при отметке задачи: ' +
 					(error.response?.data?.message || error.message)
@@ -166,20 +149,16 @@ export const useTasksStore = defineStore('tasks', () => {
 	async function fetchCategories() {
 		try {
 			if (!authStore.token) {
-				// console.error('Токен авторизации отсутствует');
 				throw new Error('Токен авторизации отсутствует');
 			}
 
-			const globalUrl = `${CATEGORIES_API_URL}/global`;
-			const userUrl = `${CATEGORIES_API_URL}/user`;
-
 			const [globalResponse, userResponse] = await Promise.all([
-				axios.get<CategoryDto[]>(globalUrl, {
+				axios.get<CategoryDto[]>(`${CATEGORIES_API_URL}/global`, {
 					headers: {
 						Authorization: `Bearer ${authStore.token}`,
 					},
 				}),
-				axios.get<CategoryDto[]>(userUrl, {
+				axios.get<CategoryDto[]>(`${CATEGORIES_API_URL}/user`, {
 					headers: {
 						Authorization: `Bearer ${authStore.token}`,
 					},
@@ -187,31 +166,22 @@ export const useTasksStore = defineStore('tasks', () => {
 			]);
 
 			const globalCategories = Array.isArray(globalResponse.data)
-				? globalResponse.data
+				? globalResponse.data.map(category => ({
+						id: category.id,
+						name: category.name || 'Без названия',
+						isGlobal: true,
+				  }))
 				: [];
 			const userCategories = Array.isArray(userResponse.data)
-				? userResponse.data
+				? userResponse.data.map(category => ({
+						id: category.id,
+						name: category.name || 'Без названия',
+						isGlobal: false,
+				  }))
 				: [];
 
-			const result = [
-				...globalCategories.map(category => ({
-					id: category.id,
-					name: category.name || 'Без названия',
-					isGlobal: true,
-				})),
-				...userCategories.map(category => ({
-					id: category.id,
-					name: category.name || 'Без названия',
-					isGlobal: false,
-				})),
-			];
-
-			return result;
+			return [...globalCategories, ...userCategories];
 		} catch (error) {
-			// console.error('Ошибка загрузки категорий:', error);
-			// if (error.response) {
-			//   console.error('Ошибка:', error.response.status, error.response.data);
-			// }
 			throw new Error(
 				'Ошибка загрузки категорий: ' +
 					(error.response?.data?.message || error.message)

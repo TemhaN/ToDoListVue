@@ -3,17 +3,17 @@ import { onMounted, ref, computed, watch } from 'vue';
 import { useAuthStore } from '@/stores/auth';
 import { useTasksStore } from '@/stores/tasks';
 import { useRouter } from 'vue-router';
+import type { Task, CategoryDto } from '@/types';
 
 const authStore = useAuthStore();
 const tasksStore = useTasksStore();
-const error = ref<string | null>(null);
 const router = useRouter();
 
+const error = ref<string | null>(null);
 const isCompleted = ref<boolean | null>(null);
 const sortBy = ref<string | null>(null);
 const sortOrder = ref<string>('asc');
 const searchQuery = ref<string>('');
-
 const isLoading = ref(false);
 const showDeleteConfirm = ref(false);
 const taskToDelete = ref<number | null>(null);
@@ -27,7 +27,9 @@ const sortOptions = [
 ];
 
 const filteredTasks = computed(() => tasksStore.tasks.items);
-const totalPages = computed(() => Math.ceil(tasksStore.tasks.totalCount / tasksStore.tasks.pageSize));
+const totalPages = computed(() =>
+  Math.ceil(tasksStore.tasks.totalCount / tasksStore.tasks.pageSize)
+);
 
 function formatDate(date: string | null): string {
   if (!date) return '-';
@@ -36,13 +38,13 @@ function formatDate(date: string | null): string {
     month: '2-digit',
     year: 'numeric',
     hour: '2-digit',
-    minute: '2-digit'
+    minute: '2-digit',
   });
 }
 
-function formatCategories(categories: { id: number; name: string }[] | undefined): string {
+function formatCategories(categories: CategoryDto[] | undefined): string {
   if (!categories || !categories.length) return '-';
-  return categories.map(c => c.name).join(', ');
+  return categories.map(cat => cat.name || 'Без названия').join(', ');
 }
 
 watch(searchQuery, () => {
@@ -69,11 +71,13 @@ watch(searchQuery, () => {
 watch([isCompleted, sortBy, sortOrder], () => {
   searchQuery.value = '';
   isLoading.value = true;
-  applyFilters().then(() => {
-    isLoading.value = false;
-  }).catch(() => {
-    isLoading.value = false;
-  });
+  applyFilters()
+    .then(() => {
+      isLoading.value = false;
+    })
+    .catch(() => {
+      isLoading.value = false;
+    });
 });
 
 onMounted(async () => {
@@ -162,9 +166,16 @@ async function applyFilters() {
 
 <template>
   <div class="container mt-5">
-    <h1>Список задач {{ authStore.user ? `для ${authStore.user.username}` : '' }}</h1>
+    <h1>
+      Список задач {{ authStore.user ? `для ${authStore.user.username}` : '' }}
+    </h1>
     <button class="btn btn-danger mb-3" @click="authStore.logout">Выйти</button>
-    <router-link to="/add-task" class="btn btn-primary mb-3 ms-2">Добавить задачу</router-link>
+    <router-link to="/add-task" class="btn btn-primary mb-3 ms-2"
+      >Добавить задачу</router-link
+    >
+    <router-link to="/categories" class="btn btn-secondary mb-3 ms-2"
+      >Управление категориями</router-link
+    >
     <div v-if="error" class="alert alert-danger">{{ error }}</div>
 
     <div class="mb-4">
@@ -173,7 +184,11 @@ async function applyFilters() {
           <label for="sortBy" class="form-label">Сортировать по</label>
           <select id="sortBy" v-model="sortBy" class="form-select">
             <option :value="null">Без сортировки</option>
-            <option v-for="option in sortOptions" :key="option.value" :value="option.value">
+            <option
+              v-for="option in sortOptions"
+              :key="option.value"
+              :value="option.value"
+            >
               {{ option.label }}
             </option>
           </select>
@@ -231,7 +246,8 @@ async function applyFilters() {
               {{ task.isCompleted ? 'Выполнена' : 'Не выполнена' }}
             </p>
             <p class="card-text">
-              <strong>Категории:</strong> {{ formatCategories(task.categories) }}
+              <strong>Категории:</strong>
+              {{ formatCategories(task.categories) }}
             </p>
             <button
               v-if="!task.isCompleted"
@@ -264,7 +280,7 @@ async function applyFilters() {
     <div
       v-if="showDeleteConfirm"
       class="modal fade show"
-      style="display: block;"
+      style="display: block"
       tabindex="-1"
     >
       <div class="modal-dialog">
@@ -278,9 +294,7 @@ async function applyFilters() {
               :disabled="isLoading"
             ></button>
           </div>
-          <div class="modal-body">
-            Вы уверены, что хотите удалить задачу?
-          </div>
+          <div class="modal-body">Вы уверены, что хотите удалить задачу?</div>
           <div class="modal-footer">
             <button
               type="button"
@@ -306,7 +320,10 @@ async function applyFilters() {
 
     <nav v-if="totalPages > 1">
       <ul class="pagination justify-content-center">
-        <li class="page-item" :class="{ disabled: tasksStore.tasks.page === 1 }">
+        <li
+          class="page-item"
+          :class="{ disabled: tasksStore.tasks.page === 1 }"
+        >
           <button
             class="page-link"
             @click="changePage(tasksStore.tasks.page - 1)"

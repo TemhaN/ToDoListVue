@@ -5,7 +5,7 @@ import { useAuthStore } from '@/stores/auth';
 import { useRouter, useRoute } from 'vue-router';
 import axios from 'axios';
 import { TASKS_API_URL } from '@/api/config';
-import type { CategoryDto } from '@/stores/tasks';
+import type { CategoryDto, TaskCategoryInput } from '@/types';
 
 const tasksStore = useTasksStore();
 const authStore = useAuthStore();
@@ -18,7 +18,7 @@ const form = ref({
   description: '',
   dueDate: '',
   isCompleted: false,
-  categoryIds: [] as number[],
+  categoryIds: [] as { id: number; isGlobal: boolean }[],
 });
 const categories = ref<CategoryDto[]>([]);
 const error = ref<string | null>(null);
@@ -39,14 +39,17 @@ onMounted(async () => {
       description: task.description || '',
       dueDate: task.dueDate ? new Date(task.dueDate).toISOString().slice(0, 16) : '',
       isCompleted: task.isCompleted || false,
-      categoryIds: task.categories ? task.categories.map((c: CategoryDto) => c.id) : [],
+      categoryIds: task.categories
+        ? task.categories.map((c: CategoryDto) => ({
+            id: c.id,
+            isGlobal: c.isGlobal,
+          }))
+        : [],
     };
 
     categories.value = await tasksStore.fetchCategories();
-
   } catch (err) {
     error.value = 'Не удалось загрузить задачу или категории: ' + (err as Error).message;
-    // console.error('Не удалось загрузить задачу или категории:', err);
   } finally {
     isLoading.value = false;
   }
@@ -58,27 +61,33 @@ async function submitForm() {
     return;
   }
 
+  if (!form.value.description.trim()) {
+    error.value = 'Описание задачи обязательно';
+    return;
+  }
+
   try {
     isLoading.value = true;
     let dueDate: string | undefined = undefined;
     if (form.value.dueDate) {
-      const date = new Date(form.value.dueDate);
-      dueDate = date.toISOString();
-      // console.log('Дата в UTC:', dueDate);
+      dueDate = new Date(form.value.dueDate).toISOString();
     }
 
+    const taskCategories: TaskCategoryInput[] = form.value.categoryIds.map(cat => ({
+      id: cat.id,
+      isGlobal: cat.isGlobal,
+    }));
 
     await tasksStore.updateTask(taskId, {
-      title: form.value.title,
-      description: form.value.description || undefined,
+      title: form.value.title.trim(),
+      description: form.value.description.trim(),
       isCompleted: form.value.isCompleted,
       dueDate,
-      categoryIds: form.value.categoryIds.length ? form.value.categoryIds : undefined,
+      categories: taskCategories.length ? taskCategories : undefined,
     });
     router.push('/');
   } catch (err) {
     error.value = 'Ошибка обновления задачи: ' + (err as Error).message;
-    // console.error('Ошибка обновления задачи:', err);
   } finally {
     isLoading.value = false;
   }
@@ -140,9 +149,24 @@ async function submitForm() {
           multiple
           :disabled="isLoading || !categories.length"
         >
-          <option v-for="category in categories" :key="category.id" :value="category.id">
-            {{ category.name || 'Без названия' }} ({{ category.isGlobal ? 'Глобальная' : 'Пользовательская' }})
-          </option>
+          <optgroup label="Глобальные категории">
+            <option
+              v-for="category in categories.filter(c => c.isGlobal)"
+              :key="'global_' + category.id"
+              :value="{ id: category.id, isGlobal: true }"
+            >
+              {{ category.name || 'Без названия' }}
+            </option>
+          </optgroup>
+          <optgroup label="Пользовательские категории">
+            <option
+              v-for="category in categories.filter(c => !c.isGlobal)"
+              :key="'user_' + category.id"
+              :value="{ id: category.id, isGlobal: false }"
+            >
+              {{ category.name || 'Без названия' }}
+            </option>
+          </optgroup>
         </select>
       </div>
       <button type="submit" class="btn btn-primary" :disabled="isLoading">
